@@ -41,6 +41,7 @@ const posts_1 = __importDefault(require("./routes/posts"));
 const logUtils = __importStar(require("./utils/logging"));
 const migrations_1 = require("./utils/migrations");
 const post_analysis_1 = require("./worker/post_analysis");
+const express_rate_limit_1 = require("express-rate-limit");
 // Setup the context from config file
 app_context_1.AppContext.initiateContext();
 let pool = app_context_1.AppContext.getInstance().getPool();
@@ -51,13 +52,22 @@ pool.connect((error, client) => {
     else {
         (0, migrations_1.migrateTables)(pool);
         createHttpServer();
-        (0, post_analysis_1.SetupPostAnalysisWorker)();
+        (0, post_analysis_1.SetupPostAnalysisWorker)(); // With use of command line can also be ran separately
     }
 });
 function createHttpServer() {
     const app = (0, express_1.default)();
     const port = 3000;
+    // Ip based rate limiting [In memory currently. Use store option for other usages]
+    const limiter = (0, express_rate_limit_1.rateLimit)({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+        standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+        legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+        //store: external store such as redis can be used, right now only Memory store is being used.
+    });
     app.use(express_1.default.json());
+    app.use(limiter);
     // Health check path
     app.get("/ping", (req, res) => __awaiter(this, void 0, void 0, function* () {
         res.status(200).send();
